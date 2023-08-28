@@ -84,7 +84,8 @@ func (neuralNet *NeuralNet) calculateOutputs(layer *Layer, softmax bool) {
 			connection := neuron.connections[z]
 			neuron.output += neuralNet.layers[connection.inputLayer].outputs[connection.input] * connection.weight
 		}
-		fmt.Printf("output: %.5f - sigmoid: %.5f - hyperbolic tan: %.5f \n", neuron.output, sigmoid(neuron.output), math.Tanh(neuron.output))
+		// can we use an independent activation function per neuron and does it effect results? e.g. define activation and its derivitive for each neuron
+		// fmt.Printf("output: %.5f - sigmoid: %.5f - hyperbolic tan: %.5f \n", neuron.output, sigmoid(neuron.output), math.Tanh(neuron.output))
 		neuron.output = math.Tanh(neuron.output)
 
 		layer.outputs = append(layer.outputs, neuron.output)
@@ -161,6 +162,7 @@ func (neuralNet *NeuralNet) applyNewMargins() {
 	}
 }
 
+// test effectivity: set and adjust weight based on distance in polar plane?
 func (neuralNet *NeuralNet) applyPolarScaling() {
 	for i := 1; i < len(neuralNet.layers); i++ {
 		for j := 0; j < len(neuralNet.layers[i].neurons); j++ {
@@ -184,6 +186,7 @@ func (neuralNet *NeuralNet) addLayer(layer Layer) {
 	neuralNet.layers = append(neuralNet.layers, layer)
 }
 
+// test: recreating connections if weights drop too low?
 func (neuron *Neuron) createConnections(input Layer) {
 	neuron.connections = make([]Connection, 0)
 	for i := 0; i < len(input.outputs); i++ {
@@ -199,6 +202,7 @@ func (neuron *Neuron) createConnections(input Layer) {
 	}
 }
 
+// for recalculating weights based on distance between neurons
 func (connection *Connection) calculateWeight(self, input Neuron) {
 	if input.id == -1 {
 		connection.weight = rand.Float64()
