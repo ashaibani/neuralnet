@@ -1,9 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"log"
 	"math"
 	"math/rand"
+	"os"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -21,8 +26,13 @@ var (
 )
 
 func main() {
-	NN = createNeuralNet(0.3)
-	epochCount := 5000
+	NN, err := loadNeuralNetFromDumpWithInput(INPUTS, "71846214.dat")
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(0)
+	}
+	// NN = createNeuralNet(0.3)
+	epochCount := 10
 
 	for epoch := 0; epoch < epochCount; epoch++ {
 		NN.feedForward(false)
@@ -38,6 +48,8 @@ func main() {
 		}
 		time.Sleep(1 * time.Second)
 	}
+
+	NN.saveWeights()
 
 }
 
@@ -209,4 +221,159 @@ func (connection *Connection) calculateWeight(self, input Neuron) {
 	} else {
 		connection.weight = scaledDistanceBetweenPolar(self.location, input.location, MAX_NEURON_DISTANCE)
 	}
+}
+
+func (neuralNet *NeuralNet) saveWeights() {
+	fileName := fmt.Sprintf("%d.dat", rand.Intn(100000000))
+	f, err := os.Create(fileName)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer f.Close()
+
+	// first line = neuralnet config, each line after is a layer and its data
+	s := fmt.Sprintf("%f:%d\n", neuralNet.learningRate, len(neuralNet.layers))
+	for _, layer := range neuralNet.layers {
+		if layer.id == 0 {
+			continue
+		}
+		s += fmt.Sprintf("%d,%s", layer.id, layer.neuronsToString())
+		// splitting this by , returns all neurons. index 0 is layer id
+		// splitting each neuron string by : give attributes and last attribute is list of connections.
+		// splitting that by ; return all connection details
+	}
+	_, err2 := f.WriteString(s)
+
+	if err2 != nil {
+		log.Fatal(err2)
+	}
+
+	fmt.Printf("SAVED TO %s \n", fileName)
+}
+
+func (layer *Layer) neuronsToString() string {
+	s := ""
+	for _, n := range layer.neurons {
+		s += fmt.Sprintf("%d:%f:%f:%f:%f:%s,", n.id, n.bias, n.errMargin, n.location.radius, n.location.radian, n.connectionsToString())
+	}
+	s += "\n"
+	return s
+}
+
+func (n *Neuron) connectionsToString() string {
+	s := ""
+	for _, conn := range n.connections {
+		s += fmt.Sprintf("%d;%d;%f#", conn.input, conn.inputLayer, conn.weight)
+	}
+	return s
+}
+
+func loadNeuralNetFromDumpWithInput(inputs []float64, file string) (NeuralNet, error) {
+	NN := NeuralNet{}
+	readFile, err := os.Open(file)
+
+	if err != nil {
+		return NN, err
+	}
+
+	fileScanner := bufio.NewScanner(readFile)
+	fileScanner.Split(bufio.ScanLines)
+	lineIndex := 0
+
+	maxLayers := 0
+	for fileScanner.Scan() {
+		s := fileScanner.Text()
+		if lineIndex == 0 {
+			data := strings.Split(s, ":")
+			if len(data) < 2 {
+				return NN, fmt.Errorf("incorrect amount of parameters for neuralnet, came with %d parameters", len(data))
+			}
+			NN.learningRate, err = strconv.ParseFloat(data[0], 64)
+			if err != nil {
+				return NN, err
+			}
+			maxLayers, err = strconv.Atoi(data[1])
+			if err != nil {
+				return NN, err
+			}
+			inputLayer := Layer{id: 0, neurons: make([]Neuron, 0), outputs: inputs}
+			NN.addLayer(inputLayer)
+		} else {
+			data := strings.Split(s, ",")
+			layer := Layer{}
+			layer.id, err = strconv.Atoi(data[0])
+			if err != nil {
+				return NN, err
+			}
+			for i := 1; i < len(data); i++ {
+				neuron := Neuron{}
+				neuronData := strings.Split(data[i], ":")
+				if data[i] == "" {
+					continue
+				}
+				if len(neuronData) < 6 {
+					return NN, fmt.Errorf("incorrect amount of parameters for neuron, came with %d parameters", len(data))
+				}
+				neuron.id, err = strconv.Atoi(neuronData[0])
+				if err != nil {
+					return NN, err
+				}
+				neuron.bias, err = strconv.ParseFloat(neuronData[1], 64)
+				if err != nil {
+					return NN, err
+				}
+				neuron.errMargin, err = strconv.ParseFloat(neuronData[2], 64)
+				if err != nil {
+					return NN, err
+				}
+				radius, err := strconv.ParseFloat(neuronData[3], 64)
+				if err != nil {
+					return NN, err
+				}
+				radian, err := strconv.ParseFloat(neuronData[4], 64)
+				if err != nil {
+					return NN, err
+				}
+				neuron.location = Coordinate{radius: radius, radian: radian}
+
+				connectionData := strings.Split(neuronData[len(neuronData)-1], "#")
+				for _, connData := range connectionData {
+					connection := Connection{}
+					if connData == "" {
+						continue
+					}
+					da := strings.Split(connData, ";")
+					if len(da) < 3 {
+						return NN, fmt.Errorf("incorrect amount of parameters for connections, came with %d parameters", len(da))
+					}
+					connection.input, err = strconv.Atoi(da[0])
+					if err != nil {
+						return NN, err
+					}
+					connection.inputLayer, err = strconv.Atoi(da[1])
+					if err != nil {
+						return NN, err
+					}
+					connection.weight, err = strconv.ParseFloat(da[2], 64)
+					if err != nil {
+						return NN, err
+					}
+					neuron.connections = append(neuron.connections, connection)
+				}
+
+				layer.neurons = append(layer.neurons, neuron)
+			}
+			NN.addLayer(layer)
+		}
+		lineIndex++
+	}
+
+	if len(NN.layers) < maxLayers || len(NN.layers) > maxLayers {
+		return NN, fmt.Errorf("loaded an incorrect amount of layers %d", len(NN.layers))
+	}
+
+	readFile.Close()
+	return NN, nil
 }

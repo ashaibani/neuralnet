@@ -22,7 +22,7 @@ type Neuron struct {
 
 type Connection struct {
 	input      int
-	inputLayer int
+	inputLayer int // test: connections across layers? is that even a thing?
 	weight     float64
 }
 
