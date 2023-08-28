@@ -26,12 +26,13 @@ var (
 )
 
 func main() {
-	NN, err := loadNeuralNetFromDumpWithInput(INPUTS, "71846214.dat")
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(0)
-	}
-	// NN = createNeuralNet(0.3)
+	// load models from existing network
+	// NN, err := loadNeuralNetFromDumpWithInput(INPUTS, "models/71846214.dat")
+	// if err != nil {
+	// 	fmt.Println(err)
+	// 	os.Exit(0)
+	// }
+	NN = createNeuralNet(0.3)
 	epochCount := 10
 
 	for epoch := 0; epoch < epochCount; epoch++ {
@@ -224,7 +225,7 @@ func (connection *Connection) calculateWeight(self, input Neuron) {
 }
 
 func (neuralNet *NeuralNet) saveWeights() {
-	fileName := fmt.Sprintf("%d.dat", rand.Intn(100000000))
+	fileName := fmt.Sprintf("models/%d.dat", rand.Intn(100000000))
 	f, err := os.Create(fileName)
 
 	if err != nil {
