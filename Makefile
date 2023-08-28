@@ -2,10 +2,10 @@ build: main.go
 	go build -o bin/neuralnet .
 
 clean:
-	rm bin/nel
+	rm bin/neuralnet
 
 image:
-	docker build -t nel .
+	docker build -t neuralnet .
 
 run: build
 	./bin/neuralnet
